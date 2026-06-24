@@ -1,0 +1,25 @@
+services:
+  # Backend API – serves API + static frontend
+  - type: web
+    name: vision-detector-api
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: HF_TOKEN
+        sync: false
+      - key: HF_MODEL
+        value: facebook/detr-resnet-50
+      # Optional – Azure (leave empty if credits finished)
+      - key: AZURE_ENDPOINT
+        sync: false
+      - key: AZURE_KEY
+        sync: false
+      - key: FRONTEND_URL
+        value: https://vision-detector-frontend.vercel.app
