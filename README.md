@@ -7,7 +7,7 @@ Detect objects in images with 3 providers:
 
 Your original repo used only Azure and credits ran out. This v2 fixes that – it works completely free in the browser, with Hugging Face and Azure as optional server-side fallbacks.
 
-Live demo: deploy `frontend/` to GitHub Pages / Vercel – Browser mode works with zero backend.
+Live demo:(https://azure-vision-detector.vercel.app)
 
 ---
 
