@@ -401,34 +401,71 @@ els.threshold.addEventListener('input', () => {
 // ---------------- Browser Detector ----------------
 
 async function getBrowserDetector() {
-  if (detector) {
-    return detector;
-  }
-
-  if (detectorLoading) {
-    return detectorLoading;
-  }
+  if (detector) return detector;
+  if (detectorLoading) return detectorLoading;
 
   setStatus('Loading AI model in browser (~40 MB, one-time)…', '');
 
   detectorLoading = (async () => {
     const transformers = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
-    const pipeline = transformers.pipeline;
+    const { pipeline, env } = transformers;
 
-    const loadedDetector = await pipeline('object-detection', 'Xenova/detr-resnet-50', {
-      progress_callback: progress => {
-        if (progress.status === 'downloading' || progress.status === 'progress') {
-          const percent = progress.progress ? Math.round(progress.progress) : 0;
-          setStatus(`Downloading model… ${percent}%`, '');
-        }
+    // Important for Vercel/static deployments:
+    // Do NOT try to load model files from /models/... on our own website.
+    // If allowed, Vercel may return HTML 404 pages, causing:
+    // "Unexpected token '<', '<!DOCTYPE ...' is not valid JSON"
+    env.allowLocalModels = false;
+
+    // Cache model files in browser after first download.
+    env.useBrowserCache = true;
+
+    // Make sure ONNX WASM files are loaded from CDN, not from our Vercel site.
+    if (env.backends && env.backends.onnx && env.backends.onnx.wasm) {
+      env.backends.onnx.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/';
+    }
+
+    const modelsToTry = [
+      'Xenova/detr-resnet-50',
+      'Xenova/yolos-tiny'
+    ];
+
+    let lastError = null;
+
+    for (const modelName of modelsToTry) {
+      try {
+        setStatus(`Loading browser AI model: ${modelName}…`, '');
+
+        const loadedDetector = await pipeline('object-detection', modelName, {
+          progress_callback: progress => {
+            if (progress.status === 'downloading' || progress.status === 'progress') {
+              const percent = progress.progress ? Math.round(progress.progress) : 0;
+              setStatus(`Downloading model… ${percent}%`, '');
+            }
+          }
+        });
+
+        detector = loadedDetector;
+        detectorLoading = null;
+
+        setStatus(`AI model loaded: ${modelName}`, 'ok');
+
+        return loadedDetector;
+      } catch (error) {
+        lastError = error;
+        console.warn(`Failed to load ${modelName}:`, error);
       }
-    });
+    }
 
-    detector = loadedDetector;
+    throw lastError || new Error('No browser AI model could be loaded.');
+  })().catch(error => {
     detectorLoading = null;
 
-    return loadedDetector;
-  })();
+    const detail = error && error.message ? error.message : String(error);
+
+    throw new Error(
+      `Browser AI model failed to load. This is usually a model/CDN loading issue, not an upload issue. Details: ${detail}`
+    );
+  });
 
   return detectorLoading;
 }
