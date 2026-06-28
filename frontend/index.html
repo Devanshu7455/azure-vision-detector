@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Vision Object Detector – Free, No Azure Credits Needed</title>
+  <title>Vision Object Detector – Free</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,8 +13,9 @@
   <div class="container">
     <header>
       <h1>🔍 Vision Object Detector</h1>
-      <p class="subtitle">Free object detection – 3 providers: Browser (100% free), Hugging Face, Azure</p>
+      <p class="subtitle">Free object detection – runs in your browser, no API keys</p>
       <div id="provider-status" class="pill-row"></div>
+      <div id="backend-banner" class="banner hidden"></div>
     </header>
 
     <div class="card">
@@ -22,12 +23,12 @@
         <div class="field">
           <label>Provider</label>
           <select id="provider">
-            <option value="browser">Browser – Transformers.js (FREE, no credits, offline)</option>
-            <option value="auto">Auto – Hugging Face → Azure fallback</option>
-            <option value="huggingface">Hugging Face Inference API (free token)</option>
+            <option value="browser">Browser – Transformers.js (FREE, offline)</option>
+            <option value="auto">Auto – Hugging Face → Azure</option>
+            <option value="huggingface">Hugging Face API</option>
             <option value="azure">Azure Computer Vision</option>
           </select>
-          <small id="provider-hint" class="muted">Runs 100% in your browser. First load downloads ~40MB model, then instant.</small>
+          <small id="provider-hint" class="muted"></small>
         </div>
         <div class="field" style="max-width:170px">
           <label>Confidence ≥</label>
@@ -36,11 +37,10 @@
         </div>
       </div>
 
-      <!-- Upload / URL -->
       <div class="input-tabs">
-        <button class="tab active" data-tab="upload">📁 Upload</button>
-        <button class="tab" data-tab="url">🔗 Image URL</button>
-        <button class="tab" data-tab="sample">✨ Samples</button>
+        <button class="tab active" data-tab="upload" type="button">📁 Upload</button>
+        <button class="tab" data-tab="url" type="button">🔗 Image URL</button>
+        <button class="tab" data-tab="sample" type="button">✨ Samples</button>
       </div>
 
       <div class="tab-pane active" id="pane-upload">
@@ -65,7 +65,6 @@
         <div class="sample-grid" id="sample-grid"></div>
       </div>
 
-      <!-- Preview -->
       <div id="preview-wrap" class="preview-wrap hidden">
         <div class="preview-box">
           <img id="preview-img" alt="">
@@ -77,18 +76,16 @@
         </div>
       </div>
 
-      <!-- Results -->
       <div id="results" class="results hidden"></div>
       <div id="status" class="status"></div>
     </div>
 
     <footer>
-      <p>Free • No Azure credits needed • <a href="https://github.com/Devanshu7455/azure-vision-detector" target="_blank">GitHub</a> • 
-      Browser mode uses <a href="https://huggingface.co/docs/transformers.js" target="_blank">Transformers.js</a> (Xenova/detr-resnet-50)</p>
+      <p>Free • No Azure credits needed • <a href="https://github.com/Devanshu7455/azure-vision-detector" target="_blank">GitHub</a></p>
     </footer>
   </div>
 
-  <!-- Set your backend URL here for production (Vercel/Netlify) -->
+  <!-- Optional backend – uncomment and set your URL -->
   <!-- <script>window.VISION_API_URL = "https://your-backend.onrender.com"</script> -->
   <script type="module" src="js/app.js"></script>
 </body>

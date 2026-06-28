@@ -1,17 +1,7 @@
-// Vision Object Detector – 3 providers: browser (Transformers.js), huggingface, azure
-// Browser mode = 100% free, no credits, runs locally
+// Vision Object Detector – Browser (free) + HF + Azure fallback
+// Works 100% offline with no backend – Provider = Browser
 
-let API_URL = window.location.hostname === 'localhost'
-  ? 'http://localhost:5000'
-  : window.location.origin;
-
-// Allow override via window.VISION_API_URL (set in index.html for Vercel)
-// or via import from ./config.js if using a bundler
-try {
-  const cfg = await import('./config.js').catch(()=>null);
-  if (cfg && cfg.API_URL) API_URL = cfg.API_URL;
-} catch {}
-if (window.VISION_API_URL) API_URL = window.VISION_API_URL;
+const API_URL = window.VISION_API_URL || (location.hostname === 'localhost' ? 'http://localhost:5000' : null);
 
 const els = {
   provider: document.getElementById('provider'),
@@ -34,10 +24,9 @@ const els = {
 
 let currentFile = null;
 let currentImageUrl = '';
-let detector = null; // transformers.js pipeline
+let detector = null;
 let detectorLoading = null;
 
-// --- UI helpers
 function setStatus(msg, type='') {
   els.status.textContent = msg || '';
   els.status.className = 'status ' + type;
@@ -56,6 +45,7 @@ function showResults(objects, provider='-') {
 function drawBoxes(objects) {
   const img = els.previewImg;
   const canvas = els.overlay;
+  if (!img.naturalWidth) return;
   const w = img.clientWidth, h = img.clientHeight;
   const nw = img.naturalWidth, nh = img.naturalHeight;
   canvas.width = w; canvas.height = h;
@@ -81,30 +71,80 @@ function drawBoxes(objects) {
   });
 }
 
-// --- provider status pills
-async function loadProviderStatus() {
+// --- provider UI
+const hints = {
+  browser: 'Runs 100% in your browser. First load downloads ~40MB model, then instant. FREE, no API keys.',
+  auto: 'Server-side: needs backend with HF_TOKEN.',
+  huggingface: 'Server-side via Hugging Face. Needs backend with HF_TOKEN.',
+  azure: 'Azure Computer Vision. Needs backend with AZURE_KEY.'
+};
+
+function updateProviderUI() {
+  const val = els.provider.value;
+  els.providerHint.textContent = hints[val] || '';
+  const banner = document.getElementById('backend-banner');
+  if (banner) {
+    if (!API_URL && val !== 'browser') {
+      banner.className = 'banner warn';
+      banner.innerHTML = `⚠️ Server providers need a backend. Using <strong>Browser mode (free)</strong>.`;
+      banner.classList.remove('hidden');
+    } else {
+      banner.classList.add('hidden');
+    }
+  }
+}
+
+// force Browser if no backend
+function refreshProviders() {
+  const noBackend = !API_URL;
+  [...els.provider.options].forEach(opt => {
+    if (opt.value !== 'browser') {
+      opt.disabled = noBackend;
+      if (!opt.dataset.orig) opt.dataset.orig = opt.textContent.replace(' (needs backend)','');
+      opt.textContent = opt.dataset.orig + (noBackend ? ' (needs backend)' : '');
+    }
+  });
+  if (noBackend) els.provider.value = 'browser';
+}
+
+els.provider.value = 'browser';
+els.provider.addEventListener('change', () => {
+  if (!API_URL && els.provider.value !== 'browser') {
+    els.provider.value = 'browser';
+    setStatus('Server providers need a backend. Using Browser mode.', 'error');
+  }
+  updateProviderUI();
+});
+refreshProviders();
+updateProviderUI();
+
+// status pills
+(async function() {
+  if (!API_URL) {
+    els.providerStatus.innerHTML = `<span class="pill ok">Browser – FREE ✓</span><span class="pill warn">Server providers need backend</span>`;
+    return;
+  }
   try {
     const r = await fetch(`${API_URL}/api/health`);
     const j = await r.json();
-    const pills = [
+    els.providerStatus.innerHTML = [
       `<span class="pill ok">Browser – FREE ✓</span>`,
-      `<span class="pill ${j.providers.huggingface ? 'ok':'warn'}">Hugging Face – ${j.providers.huggingface ? 'ready' : 'needs HF_TOKEN'}</span>`,
-      `<span class="pill ${j.providers.azure ? 'ok':'warn'}">Azure – ${j.providers.azure ? 'ready' : 'no credits? use Browser'}</span>`
-    ];
-    els.providerStatus.innerHTML = pills.join('');
+      `<span class="pill ${j.providers.huggingface ? 'ok':'warn'}">HF – ${j.providers.huggingface?'ready':'no token'}</span>`,
+      `<span class="pill ${j.providers.azure ? 'ok':'warn'}">Azure – ${j.providers.azure?'ready':'no key'}</span>`
+    ].join('');
   } catch {
-    els.providerStatus.innerHTML = `<span class="pill ok">Browser – FREE ✓</span><span class="pill warn">Backend offline – Browser mode still works</span>`;
+    els.providerStatus.innerHTML = `<span class="pill ok">Browser – FREE ✓</span><span class="pill warn">Backend offline</span>`;
   }
-}
-loadProviderStatus();
+})();
 
-// --- file handling
+// --- image loading – FIX: no crossOrigin for local files
 function setImageFromFile(file) {
   if (!file.type.startsWith('image/')) { setStatus('Not an image', 'error'); return; }
   if (file.size > 8 * 1024 * 1024) { setStatus('File > 8 MB', 'error'); return; }
   currentFile = file;
   currentImageUrl = '';
   const url = URL.createObjectURL(file);
+  els.previewImg.removeAttribute('crossorigin');
   els.previewImg.onload = () => { drawBoxes([]); URL.revokeObjectURL(url); };
   els.previewImg.src = url;
   els.previewWrap.classList.remove('hidden');
@@ -114,9 +154,9 @@ function setImageFromFile(file) {
 function setImageFromUrl(url) {
   currentFile = null;
   currentImageUrl = url;
-  els.previewImg.onload = () => drawBoxes([]);
-  els.previewImg.onerror = () => setStatus('Failed to load image URL – try uploading instead, or check CORS.', 'error');
   els.previewImg.crossOrigin = 'anonymous';
+  els.previewImg.onload = () => drawBoxes([]);
+  els.previewImg.onerror = () => setStatus('Failed to load image URL – use Upload tab (CORS blocked).', 'error');
   els.previewImg.src = url;
   els.previewWrap.classList.remove('hidden');
   els.results.classList.add('hidden');
@@ -164,7 +204,7 @@ const samples = [
   'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800',
 ];
 document.getElementById('sample-grid').innerHTML = samples.map(s =>
-  `<img src="${s}" loading="lazy" alt="sample">`
+  `<img src="${s}" loading="lazy" alt="sample" crossorigin="anonymous">`
 ).join('');
 document.getElementById('sample-grid').addEventListener('click', e => {
   if (e.target.tagName === 'IMG') { setImageFromUrl(e.target.src.replace('w=800','w=1200')); }
@@ -175,20 +215,7 @@ els.threshold.addEventListener('input', () => {
   els.thresholdVal.textContent = parseFloat(els.threshold.value).toFixed(2);
 });
 
-// provider hint
-const hints = {
-  browser: 'Runs 100% in your browser with Transformers.js. First load downloads ~40MB model, then instant. 100% FREE, no API keys.',
-  auto: 'Tries Hugging Face first, falls back to Azure. Needs HF_TOKEN in backend .env for free server-side detection.',
-  huggingface: 'Server-side via Hugging Face Inference API. Set HF_TOKEN in backend/.env – free token at huggingface.co/settings/tokens',
-  azure: 'Microsoft Azure Computer Vision. Needs AZURE_ENDPOINT + AZURE_KEY – credits required.'
-};
-function updateProviderHint() {
-  els.providerHint.textContent = hints[els.provider.value] || '';
-}
-els.provider.addEventListener('change', updateProviderHint);
-updateProviderHint();
-
-// --- Browser-local detector (Transformers.js)
+// --- Browser detector
 async function getBrowserDetector() {
   if (detector) return detector;
   if (detectorLoading) return detectorLoading;
@@ -197,7 +224,10 @@ async function getBrowserDetector() {
     const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
     const det = await pipeline('object-detection', 'Xenova/detr-resnet-50', {
       progress_callback: p => {
-        if (p.status === 'downloading') setStatus(`Downloading model… ${p.file} ${Math.round(p.progress||0)}%`, '');
+        if (p.status === 'downloading' || p.status === 'progress') {
+          const prog = p.progress ? Math.round(p.progress) : 0;
+          setStatus(`Downloading model… ${prog}%`, '');
+        }
       }
     });
     detector = det;
@@ -211,8 +241,6 @@ async function detectBrowser(imageEl, threshold) {
   const det = await getBrowserDetector();
   setStatus('Running detection in browser…', '');
   const output = await det(imageEl.src, { threshold, percentage: true });
-  // output: [{score, label, box:{xmin,ymin,xmax,ymax}}]
-  const nw = imageEl.naturalWidth, nh = imageEl.naturalHeight;
   return output.map(o => ({
     object: o.label,
     confidence: o.score,
@@ -225,13 +253,20 @@ async function detectBrowser(imageEl, threshold) {
   }));
 }
 
-// --- detect button
+// --- detect
 els.detectBtn.addEventListener('click', async () => {
-  const provider = els.provider.value;
+  let provider = els.provider.value;
   const threshold = parseFloat(els.threshold.value);
 
-  if (!els.previewImg.src || !els.previewImg.complete) {
+  if (!els.previewImg.src || !els.previewImg.complete || !els.previewImg.naturalWidth) {
     return setStatus('Load an image first', 'error');
+  }
+
+  // force browser if no backend
+  if (provider !== 'browser' && !API_URL) {
+    provider = 'browser';
+    els.provider.value = 'browser';
+    updateProviderUI();
   }
 
   els.detectBtn.disabled = true;
@@ -245,30 +280,28 @@ els.detectBtn.addEventListener('click', async () => {
       objects = await detectBrowser(els.previewImg, threshold);
       usedProvider = 'browser (Transformers.js)';
     } else {
-      // server-side
+      // server mode – requires API_URL
       let body, headers = {};
       if (currentFile) {
         body = new FormData();
         body.append('image', currentFile);
         body.append('provider', provider);
-        // fetch will set Content-Type
       } else {
         headers['Content-Type'] = 'application/json';
         body = JSON.stringify({ imageUrl: currentImageUrl || els.previewImg.src, provider });
       }
-      const res = await fetch(`${API_URL}/api/vision/detect`, {
-        method: 'POST',
-        headers,
-        body: currentFile ? body : body
-      });
+      const res = await fetch(`${API_URL}/api/vision/detect`, { method: 'POST', headers, body });
+      const ct = res.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) {
+        const text = await res.text();
+        throw new Error(`Backend returned HTML, not JSON – check API_URL`);
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || data.detail || 'Detection failed');
+      if (!res.ok) throw new Error(data.error || 'Detection failed');
       objects = data.objects || [];
       usedProvider = data.provider || provider;
-      if (data.model) usedProvider += ` / ${data.model}`;
     }
 
-    // filter by threshold (server may return all)
     objects = objects.filter(o => o.confidence >= threshold);
     objects.sort((a,b)=> b.confidence - a.confidence);
 
@@ -290,7 +323,7 @@ els.detectBtn.addEventListener('click', async () => {
 // clear
 els.clearBtn.addEventListener('click', () => {
   currentFile = null; currentImageUrl = '';
-  els.previewImg.src = '';
+  els.previewImg.removeAttribute('src');
   els.previewWrap.classList.add('hidden');
   els.results.classList.add('hidden');
   els.results.innerHTML = '';
@@ -298,14 +331,4 @@ els.clearBtn.addEventListener('click', () => {
   setStatus('');
   els.fileInput.value = '';
   els.imageUrl.value = '';
-});
-
-// redraw boxes on resize
-window.addEventListener('resize', () => {
-  const canvas = els.overlay;
-  if (canvas.width > 0) {
-    // re-draw last results – simple: just clear, user can re-detect
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-  }
 });
