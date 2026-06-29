@@ -1,5 +1,10 @@
 # 🔍 Vision Object Detector – Free, No Azure Credits Needed
 
+## Live Demo
+
+👉 [Open Live Demo](https://azure-vision-detector.vercel.app)
+
+
 Detect objects in images with 3 providers:
 1. **Browser (Transformers.js) – 100% FREE, no API keys, offline**
 2. **Hugging Face Inference API – free token**
@@ -7,7 +12,6 @@ Detect objects in images with 3 providers:
 
 Your original repo used only Azure and credits ran out. This v2 fixes that – it works completely free in the browser, with Hugging Face and Azure as optional server-side fallbacks.
 
-Live demo:(https://azure-vision-detector.vercel.app)
 
 ---
 
