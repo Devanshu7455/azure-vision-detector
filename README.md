@@ -1,4 +1,3 @@
-cat > README.md <<'EOF'
 # 🔍 Vision Object Detector
 
 A multi-provider computer vision web app for detecting objects in images using **Browser AI**, **Hugging Face**, and **Azure Computer Vision**.
